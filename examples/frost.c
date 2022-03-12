@@ -301,3 +301,100 @@ int sign(const secp256k1_context* ctx, struct signer_secrets *signer_secrets, st
     secp256k1_context_destroy(ctx);
     return 0;
 }
+
+/*/////////////////////////////////////////////////////////////////
+//                                                              //
+//                                                              //
+//                       METHODS FOR JAVA                       //
+//                                                              //
+//                                                              //
+/////////////////////////////////////////////////////////////////*/
+
+/**
+ * Method to create a key pair for each participant
+ * @param ctx
+ * @param pubkey pointer to the publickey
+ * @param keypair pointer to the keypair
+ * @return success/failure
+ */
+int create_key_pair_java(const secp256k1_context* ctx, secp256k1_xonly_pubkey pubkey, secp256k1_keypair keypair)
+{
+    unsigned char seckey[32];
+    FILE *frand = fopen("/dev/urandom", "r");
+    if (frand == NULL) {
+        return 0;
+    }
+    do {
+        if(!fread(seckey, sizeof(seckey), 1, frand)) {
+            fclose(frand);
+            return 0;
+        }
+        /* The probability that this not a valid secret key is approximately 2^-128 */
+    } while (!secp256k1_ec_seckey_verify(ctx, seckey));
+    fclose(frand);
+    if (!secp256k1_keypair_create(ctx, &keypair, seckey)) {
+        return 0;
+    }
+    if (!secp256k1_keypair_xonly_pub(ctx, &pubkey, NULL, &keypair)) {
+        return 0;
+    }
+    return 1;
+}
+
+/**
+ * Combines all of the public keys to a single aggregated public key
+ * @param ctx
+ * @param agg_pk
+ * @param pubkeys
+ * @param total_number_of_public_keys
+ * @return success/failure
+ */
+int secp256k1_musig_pubkey_agg_java(const secp256k1_context* ctx, secp256k1_xonly_pubkey agg_pk, const secp256k1_xonly_pubkey * const* pubkeys, size_t total_number_of_public_keys)
+{
+    if (!secp256k1_musig_pubkey_agg(ctx, NULL, &agg_pk, NULL, pubkeys, total_number_of_public_keys)) {
+        return 0;
+    }
+    return 1;
+}
+
+/**
+ * Method for each participant to sign
+ * @param ctx
+ * @param session
+ * @param currentSigner
+ * @param msg32
+ * @param number_of_participants
+ * @param current_index
+ * @return
+ */
+/*secp256k1_musig_partial_sig secp256k1_frost_partial_sign_java(secp256k1_context* ctx, secp256k1_musig_session session, struct signer currentSigner,const unsigned char* msg32, size_t number_of_participants, size_t current_index)
+//{
+//
+//    size_t participants[number_of_participants];
+//    / Set indexes of participants who will be signing /
+//    int i;
+//    for (i = 0; i < number_of_participants; i++) {
+//        participants[i] = i+1;
+//    }
+//
+//    secp256k1_musig_aggnonce agg_pubnonce;
+//
+//    / Create aggregate pubkey, aggregate nonce and initialize signer data /
+//    if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, &cache, pubkeys, N_SIGNERS)) {
+//        return 0;
+//    }
+//    if (!secp256k1_musig_nonce_agg(ctx, &agg_pubnonce, pubnonces, THRESHOLD)) {
+//        return 0;
+//    }
+//    if (!secp256k1_musig_nonce_process(ctx, &session, &agg_pubnonce, msg32, &cache, NULL)) {
+//        return 0;
+//    }
+//    / partial_sign will clear the secnonce by setting it to 0. That's because
+//      you must _never_ reuse the secnonce (or use the same session_id to
+//      create a secnonce). If you do, you effectively reuse the nonce and
+//      leak the secret key. /
+//    if (!secp256k1_frost_partial_sign(ctx, &currentSigner.partial_sig, &currentSigner.secnonce, &currentSigner.agg_share, &session, number_of_participants, participants, current_index)) {
+//        return 0;
+//    }
+//    return signer.partial_sig;
+//}*/
