@@ -7,6 +7,12 @@ ACLOCAL_AMFLAGS = -I build-aux/m4
 AM_CFLAGS = $(SECP_CFLAGS)
 
 lib_LTLIBRARIES = libsecp256k1.la
+if USE_JNI
+JNI_LIB = libsecp256k1_jni.la
+noinst_LTLIBRARIES = $(JNI_LIB)
+else
+JNI_LIB =
+endif
 include_HEADERS = include/secp256k1.h
 include_HEADERS += include/secp256k1_preallocated.h
 noinst_HEADERS =
@@ -42,6 +48,8 @@ noinst_HEADERS += src/field_5x52.h
 noinst_HEADERS += src/field_5x52_impl.h
 noinst_HEADERS += src/field_5x52_int128_impl.h
 noinst_HEADERS += src/field_5x52_asm_impl.h
+noinst_HEADERS += src/java/org_bitcoin_NativeSecp256k1.h
+noinst_HEADERS += src/java/org_bitcoin_Secp256k1Context.h
 noinst_HEADERS += src/modinv32.h
 noinst_HEADERS += src/modinv32_impl.h
 noinst_HEADERS += src/modinv64.h
@@ -67,7 +75,12 @@ noinst_HEADERS += contrib/lax_der_privatekey_parsing.h
 noinst_HEADERS += contrib/lax_der_privatekey_parsing.c
 
 PRECOMPUTED_LIB = libsecp256k1_precomputed.la
+
+if !USE_JNI
 noinst_LTLIBRARIES = $(PRECOMPUTED_LIB)
+else
+noinst_LTLIBRARIES += $(PRECOMPUTED_LIB)
+endif
 libsecp256k1_precomputed_la_SOURCES =  src/precomputed_ecmult.c src/precomputed_ecmult_gen.c
 libsecp256k1_precomputed_la_CPPFLAGS = $(SECP_INCLUDES)
 
@@ -89,7 +102,11 @@ endif
 
 libsecp256k1_la_SOURCES = src/secp256k1.c
 libsecp256k1_la_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/src $(SECP_INCLUDES)
-libsecp256k1_la_LIBADD = $(SECP_LIBS) $(COMMON_LIB) $(PRECOMPUTED_LIB)
+libsecp256k1_la_LIBADD = $(JNI_LIB) $(SECP_LIBS) $(COMMON_LIB) $(PRECOMPUTED_LIB)
+
+libsecp256k1_jni_la_SOURCES  = src/java/org_bitcoin_NativeSecp256k1.c src/java/org_bitcoin_Secp256k1Context.c
+libsecp256k1_jni_la_CPPFLAGS = -DSECP256K1_BUILD $(JNI_INCLUDES)
+
 libsecp256k1_la_LDFLAGS = -no-undefined -version-info $(LIB_VERSION_CURRENT):$(LIB_VERSION_REVISION):$(LIB_VERSION_AGE)
 
 if VALGRIND_ENABLED
@@ -128,6 +145,38 @@ tests_LDFLAGS = -static
 TESTS += tests
 endif
 
+JAVAROOT=src/java
+JAVAORG=org/bitcoin
+JAVA_GUAVA=$(srcdir)/$(JAVAROOT)/guava/guava-18.0.jar
+CLASSPATH_ENV=CLASSPATH=$(JAVA_GUAVA)
+JAVA_FILES= \
+  $(JAVAROOT)/$(JAVAORG)/NativeSecp256k1.java \
+  $(JAVAROOT)/$(JAVAORG)/NativeSecp256k1Test.java \
+  $(JAVAROOT)/$(JAVAORG)/NativeSecp256k1Util.java \
+  $(JAVAROOT)/$(JAVAORG)/Secp256k1Context.java
+
+if USE_JNI
+
+$(JAVA_GUAVA):
+	@echo Guava is missing. Fetch it via: \
+	wget https://search.maven.org/remotecontent?filepath=com/google/guava/guava/18.0/guava-18.0.jar -O $(@)
+	@false
+
+.stamp-java: $(JAVA_FILES)
+	@echo   Compiling $^
+	$(AM_V_at)$(CLASSPATH_ENV) javac $^
+	@touch $@
+
+if USE_TESTS
+
+check-java: libsecp256k1.la $(JAVA_GUAVA) .stamp-java
+	$(AM_V_at)java -Djava.library.path="./:./src:./src/.libs:.libs/" -cp "$(JAVA_GUAVA):$(JAVAROOT)" $(JAVAORG)/NativeSecp256k1Test
+
+endif
+endif
+
+
+
 if USE_EXHAUSTIVE_TESTS
 noinst_PROGRAMS += exhaustive_tests
 exhaustive_tests_SOURCES = src/tests_exhaustive.c
@@ -161,7 +210,7 @@ endif
 
 ### Precomputed tables
 EXTRA_PROGRAMS = precompute_ecmult precompute_ecmult_gen
-CLEANFILES = $(EXTRA_PROGRAMS)
+CLEANFILES = $(EXTRA_PROGRAMS) $(JAVAROOT)/$(JAVAORG)/*.class .stamp-java
 
 precompute_ecmult_SOURCES = src/precompute_ecmult.c
 precompute_ecmult_CPPFLAGS = $(SECP_INCLUDES)
@@ -196,7 +245,7 @@ maintainer-clean-local: clean-precomp
 clean-precomp:
 	rm -f $(PRECOMP)
 
-EXTRA_DIST = autogen.sh SECURITY.md
+EXTRA_DIST = autogen.sh SECURITY.md $(JAVA_FILES)
 
 if ENABLE_MODULE_ECDH
 include src/modules/ecdh/Makefile.am.include
