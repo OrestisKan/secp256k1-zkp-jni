@@ -8,6 +8,22 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*
+ * Class:     org_bitcoin_NativeSecp256k1
+ * Method:    receive_commitments
+ * Signature: ([B[BIJ)[[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_org_bitcoin_NativeSecp256k1_receive_1commitments
+        (JNIEnv *, jclass, jobjectArray, jobjectArray, jint, jlong);
+/*
+* Class:     org_bitcoin_NativeSecp256k1
+* Method:    create_commitments
+* Signature: ([[B[BJ)[B
+*/
+JNIEXPORT jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_create_1commitments
+        (JNIEnv *, jclass, jobjectArray, jbyteArray, jlong);
+
 /*
  * Class:     org_bitcoin_NativeSecp256k1
  * Method:    secp256k1_ctx_clone
