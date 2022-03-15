@@ -9,13 +9,16 @@
 extern "C" {
 #endif
 
+JNIEXPORT jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_send_1shares(JNIEnv *, jclass, jobjectArray, jobject, jobject, jlong);
+
+JNIEXPORT void JNICALL Java_org_bitcoin_NativeSecp256k1_generate_1key(JNIEnv *, jclass, jobject, jobject, jlong);
 /*
  * Class:     org_bitcoin_NativeSecp256k1
  * Method:    receive_commitments
- * Signature: ([B[BIJ)[[B
+ * Signature: ([[B[[[BIJ)v
  */
-JNIEXPORT jbyteArray JNICALL Java_org_bitcoin_NativeSecp256k1_receive_1commitments
-        (JNIEnv *, jclass, jobjectArray, jobjectArray, jint, jlong);
+JNIEXPORT void JNICALL Java_org_bitcoin_NativeSecp256k1_receive_1commitments
+        (JNIEnv *, jclass, jobjectArray, jobject, jobjectArray, jint, jlong);
 /*
 * Class:     org_bitcoin_NativeSecp256k1
 * Method:    create_commitments
