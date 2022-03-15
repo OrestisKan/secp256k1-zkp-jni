@@ -44,7 +44,7 @@ int send_shares(const secp256k1_context* ctx,
     /* Create random session ID. It is absolutely necessary that the session ID
      * is unique for every call of secp256k1_musig_nonce_gen. Otherwise
      * it's trivial for an attacker to extract the secret key! */
-    frand = fopen("/dev/urandom", "r");
+    frand = fopen("/Users/Ioana/my_random.txt", "r");
     if(frand == NULL) {
         return 0;
     }
@@ -107,7 +107,7 @@ int receive_shares(const secp256k1_context* ctx, const secp256k1_pubkey *pubcoef
 int create_key_pair_java(const secp256k1_context* ctx, secp256k1_xonly_pubkey* pubkey, secp256k1_keypair* keypair)
 {
     unsigned char seckey[32];
-    FILE *frand = fopen("/dev/urandom", "r");
+    FILE *frand = fopen("/Users/Ioana/my_random.txt", "r");
     if (frand == NULL) {
         return 0;
     }
@@ -742,7 +742,7 @@ JNIEXPORT void JNICALL Java_org_bitcoin_NativeSecp256k1_receive_1commitments
     jbyteArray * bytes;
     jobject bytes2;
     jobject current_signer;
-    secp256k1_frost_share* shares_to_send[N_SIGNERS];
+    secp256k1_frost_share *shares_to_send[N_SIGNERS];
     secp256k1_pubkey *pubcoeffs[N_SIGNERS];
     secp256k1_context *ctx = (secp256k1_context *) (uintptr_t) ctx_l;
 
@@ -754,10 +754,9 @@ JNIEXPORT void JNICALL Java_org_bitcoin_NativeSecp256k1_receive_1commitments
         bytes = (jbyteArray * )(*env)->GetObjectArrayElement(env, shares, i);
         b = (jbyte * )(*env)->GetByteArrayElements(env, bytes, NULL);
         for (j = 0; j < 32; j++) {
-            shares_to_send[i]->data[j] = &b[j];
+            shares_to_send[i]->data[j] = b[j];
         }
     }
-
     for (i = 0; i < N_SIGNERS; i++) {
         signers[i] = *(struct signer *) malloc(sizeof(struct signer));
         bytes = (jobject * )(*env)->GetObjectArrayElement(env, signerjs, i);
@@ -770,15 +769,12 @@ JNIEXPORT void JNICALL Java_org_bitcoin_NativeSecp256k1_receive_1commitments
     for (i = 0; i < N_SIGNERS; i++) {
         pubcoeffs[i] = signers[i].pubcoeff;
     }
-    for (i = 0; i < 32; i++) {
-    printf("%d, ", secret.agg_share.data[i]);
-    }
+
     if(!secp256k1_frost_share_agg(ctx, &secret.agg_share, signers[index].vss_hash,
             shares_to_send, pubcoeffs, N_SIGNERS, THRESHOLD, index+1)) {
         printf("failed aggregating shares\n");
     }
 
-    printf("\naaaaa\n");
 
     secret_c_to_java(env, secretj, &secret);
     signer_c_to_java(env, current_signer, &signers[index]);
