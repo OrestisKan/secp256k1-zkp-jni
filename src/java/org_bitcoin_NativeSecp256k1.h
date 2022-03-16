@@ -9,6 +9,19 @@
 extern "C" {
 #endif
 
+JNIEXPORT jbyteArray JNICALL Java_org_bitcoin_NativeSecp256k1_sign_1message_1first(JNIEnv *, jclass, jobject, jobject, jbyteArray, jbyteArray, jobject, jobject, jlong);
+JNIEXPORT void JNICALL Java_org_bitcoin_NativeSecp256k1_sign_1message_1second(JNIEnv *, jclass, jintArray, jobject, jobjectArray, jbyteArray, jobject, jobject, jint, jlong);
+JNIEXPORT jbyteArray JNICALL Java_org_bitcoin_NativeSecp256k1_sign_1message_1third(JNIEnv *, jclass, jbyteArray, jobjectArray, jobject, jlong);
+
+JNIEXPORT jboolean JNICALL Java_org_bitcoin_NativeSecp256k1_verify_1vss_1sign(JNIEnv *, jclass, jbyteArray, jobject, jbyteArray, jlong);
+JNIEXPORT jboolean JNICALL Java_org_bitcoin_NativeSecp256k1_verify_1frost(JNIEnv *, jclass, jbyteArray, jbyteArray, jbyteArray, jlong);
+
+JNIEXPORT void JNICALL Java_org_bitcoin_NativeSecp256k1_send_1vss_1sign(JNIEnv *, jclass, jobject, jobjectArray, jobject, jobject, jint, jlong);
+
+JNIEXPORT void JNICALL Java_org_bitcoin_NativeSecp256k1_receive_1vss_1sign(JNIEnv *, jclass, jobject, jobject, jobject, jlong);
+
+JNIEXPORT jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_aggregate_1vss_1sign(JNIEnv *, jclass, jobjectArray, jobject, jlong);
+
 JNIEXPORT jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_send_1shares(JNIEnv *, jclass, jobjectArray, jobject, jobject, jlong);
 
 JNIEXPORT void JNICALL Java_org_bitcoin_NativeSecp256k1_generate_1key(JNIEnv *, jclass, jobject, jobject, jlong);

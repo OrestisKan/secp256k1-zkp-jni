@@ -4,6 +4,74 @@
 #include "examples/frost.c"
 #include <jni.h>
 
+int session_java_to_c(JNIEnv *env, jobject jsession, secp256k1_musig_session *session) {
+    jfieldID fid;
+    jbyteArray bytes;
+    jbyte *b;
+    jclass session_class;
+    int i;
+    session_class = (*env)->GetObjectClass(env, jsession);
+
+    fid = (*env)->GetFieldID(env, session_class, "session", "[B");
+    bytes = (*env)->GetObjectField(env, jsession, fid);
+    b = (jbyte * )(*env)->GetByteArrayElements(env, bytes, NULL);
+
+    for (i = 0; i < 133; i++) {
+        session->data[i] = b[i];
+    }
+    (*env)->ReleaseByteArrayElements(env, bytes, b, 0);
+
+    return 1;
+}
+
+int session_c_to_java(JNIEnv *env, jobject jsession, secp256k1_musig_session *session) {
+    jfieldID fid;
+    jbyteArray bytes;
+    jbyte *b;
+    jclass session_class;
+    int i;
+    session_class = (*env)->GetObjectClass(env, jsession);
+
+    fid = (*env)->GetFieldID(env, session_class, "session", "[B");
+    jbyteArray jBuff = (*env)->NewByteArray(env, 133);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 133, session->data);
+    (*env)->SetObjectField(env, jsession, fid, jBuff);
+    return 1;
+}
+
+int cache_java_to_c(JNIEnv *env, jobject jcache, secp256k1_musig_keyagg_cache *cache) {
+    jfieldID fid;
+    jbyteArray bytes;
+    jbyte *b;
+    jclass cache_class;
+    int i;
+    cache_class = (*env)->GetObjectClass(env, jcache);
+
+    fid = (*env)->GetFieldID(env, cache_class, "cache", "[B");
+    bytes = (*env)->GetObjectField(env, jcache, fid);
+    b = (jbyte * )(*env)->GetByteArrayElements(env, bytes, NULL);
+
+    for (i = 0; i < 165; i++) {
+        cache->data[i] = b[i];
+    }
+    (*env)->ReleaseByteArrayElements(env, bytes, b, 0);
+}
+
+int cache_c_to_java(JNIEnv *env, jobject jcache, secp256k1_musig_keyagg_cache *cache) {
+    jfieldID fid;
+    jbyteArray bytes;
+    jbyte *b;
+    jclass cache_class;
+    int i;
+    cache_class = (*env)->GetObjectClass(env, jcache);
+
+    fid = (*env)->GetFieldID(env, cache_class, "cache", "[B");
+    jbyteArray jBuff = (*env)->NewByteArray(env, 165);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 165, cache->data);
+    (*env)->SetObjectField(env, jcache, fid, jBuff);
+
+    return 1;
+}
 int secret_java_to_c(JNIEnv *env, jobject jsecret, struct signer_secrets *secret) {
     jfieldID fid;
     jbyteArray bytes;
