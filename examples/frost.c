@@ -18,12 +18,12 @@
 #include <time.h>
 #include <stdio.h>
  /* Number of public keys involved in creating the aggregate signature */
-#define N_SIGNERS 100
+#define N_SIGNERS 5
 
 #define RANDOM "/dev/urandom"
 
  /* Threshold required in creating the aggregate signature */
-#define THRESHOLD 100
+#define THRESHOLD 3
 
 struct signer_secrets {
     secp256k1_keypair keypair;  // todo ai0

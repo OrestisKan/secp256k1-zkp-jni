@@ -251,7 +251,6 @@ if test x"$use_jni" != x"no"; then
     AC_MSG_WARN([1])
     have_jni_dependencies=no
   fi
-  JNI_INCLUDE_DIRS=("/Library/Java/JavaVirtualMachines/adoptopenjdk-8.jdk/Contents/Home/include")
   if test "x$JNI_INCLUDE_DIRS" = "x"; then
     AC_MSG_WARN([2])
     have_jni_dependencies=no
