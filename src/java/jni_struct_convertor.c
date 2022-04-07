@@ -1,6 +1,3 @@
-//
-// Created by Ioana Savu on 3/14/22.
-//
 #include "examples/frost.c"
 #include <jni.h>
 
@@ -26,15 +23,14 @@ int session_java_to_c(JNIEnv *env, jobject jsession, secp256k1_musig_session *se
 
 int session_c_to_java(JNIEnv *env, jobject jsession, secp256k1_musig_session *session) {
     jfieldID fid;
-    jbyteArray bytes;
-    jbyte *b;
     jclass session_class;
-    int i;
+    jbyteArray jBuff;
+
     session_class = (*env)->GetObjectClass(env, jsession);
 
     fid = (*env)->GetFieldID(env, session_class, "session", "[B");
-    jbyteArray jBuff = (*env)->NewByteArray(env, 133);
-    (*env)->SetByteArrayRegion(env, jBuff, 0, 133, session->data);
+    jBuff = (*env)->NewByteArray(env, 133);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 133, (const signed char *) session->data);
     (*env)->SetObjectField(env, jsession, fid, jBuff);
     return 1;
 }
@@ -55,19 +51,18 @@ int cache_java_to_c(JNIEnv *env, jobject jcache, secp256k1_musig_keyagg_cache *c
         cache->data[i] = b[i];
     }
     (*env)->ReleaseByteArrayElements(env, bytes, b, 0);
+    return 1;
 }
 
 int cache_c_to_java(JNIEnv *env, jobject jcache, secp256k1_musig_keyagg_cache *cache) {
     jfieldID fid;
-    jbyteArray bytes;
-    jbyte *b;
     jclass cache_class;
-    int i;
+    jbyteArray jBuff;
     cache_class = (*env)->GetObjectClass(env, jcache);
 
     fid = (*env)->GetFieldID(env, cache_class, "cache", "[B");
-    jbyteArray jBuff = (*env)->NewByteArray(env, 165);
-    (*env)->SetByteArrayRegion(env, jBuff, 0, 165, cache->data);
+    jBuff = (*env)->NewByteArray(env, 165);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 165, (const signed char *) cache->data);
     (*env)->SetObjectField(env, jcache, fid, jBuff);
 
     return 1;
@@ -78,7 +73,6 @@ int secret_java_to_c(JNIEnv *env, jobject jsecret, struct signer_secrets *secret
     jbyte *b;
     jclass secret_class;
     int i;
-    int j;
 
     secret_class = (*env)->GetObjectClass(env, jsecret);
 
@@ -94,6 +88,7 @@ int secret_java_to_c(JNIEnv *env, jobject jsecret, struct signer_secrets *secret
     fid = (*env)->GetFieldID(env, secret_class, "agg_share", "[B");
     bytes = (*env)->GetObjectField(env, jsecret, fid);
     b = (jbyte * )(*env)->GetByteArrayElements(env, bytes, NULL);
+
     for (i = 0; i < 32; i++) {
         secret->agg_share.data[i] = b[i];
     }
@@ -113,30 +108,46 @@ int secret_java_to_c(JNIEnv *env, jobject jsecret, struct signer_secrets *secret
 int secret_c_to_java(JNIEnv *env, jobject jsecret, struct signer_secrets *secret) {
     jfieldID fid;
     jclass secret_class;
-    jbyteArray bytes;
-    jbyte *b;
+    jbyteArray jBuff;
     secret_class = (*env)->GetObjectClass(env, jsecret);
 
     fid = (*env)->GetFieldID(env, secret_class, "keypair", "[B");
-    jbyteArray jBuff = (*env)->NewByteArray(env, 96);
-    (*env)->SetByteArrayRegion(env, jBuff, 0, 96, secret->keypair.data);
+    jBuff = (*env)->NewByteArray(env, 96);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 96, (const signed char *) secret->keypair.data);
     (*env)->SetObjectField(env, jsecret, fid, jBuff);
-//    (*env)->ReleaseByteArrayElements(env, jBuff, &secret.keypair.data, 0);
 
 
     fid = (*env)->GetFieldID(env, secret_class, "agg_share", "[B");
     jBuff = (*env)->NewByteArray(env, 32);
-    (*env)->SetByteArrayRegion(env, jBuff, 0, 32, secret->agg_share.data);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 32, (const signed char *) secret->agg_share.data);
     (*env)->SetObjectField(env, jsecret, fid, jBuff);
-//    (*env)->ReleaseByteArrayElements(env, jBuff, &secret.agg_share.data, 0);
 
 
     fid = (*env)->GetFieldID(env, secret_class, "secnonce", "[B");
     jBuff = (*env)->NewByteArray(env, 68);
-    (*env)->SetByteArrayRegion(env, jBuff, 0, 68, secret->secnonce.data);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 68, (const signed char *) secret->secnonce.data);
     (*env)->SetObjectField(env, jsecret, fid, jBuff);
-//    (*env)->ReleaseByteArrayElements(env, jBuff, &secret.secnonce.data, 0);
     return 0;
+}
+
+int get_threshold(JNIEnv *env, jobject jsigner) {
+    jfieldID fid;
+    jobjectArray pubcoeff;
+    jclass signer_class;
+    int threshold;
+
+    signer_class = (*env)->GetObjectClass(env, jsigner);
+    fid = (*env)->GetFieldID(env, signer_class, "pubcoeff", "[[B");
+    pubcoeff = (*env)->GetObjectField(env, jsigner, fid);
+    threshold = (*env)->GetArrayLength(env, pubcoeff);
+
+    return threshold;
+}
+
+int get_n_signers(JNIEnv *env, jobjectArray jarr) {
+    int N;
+    N = (*env)->GetArrayLength(env, jarr);
+    return N;
 }
 
 int signer_java_to_c(JNIEnv *env, jobject jsigner, struct signer *signer) {
@@ -145,8 +156,8 @@ int signer_java_to_c(JNIEnv *env, jobject jsigner, struct signer *signer) {
     jbyte *b;
     jobjectArray pubcoeff;
     jclass signer_class;
-    int i;
-    int j;
+    int i, j;
+    jbyteArray* bytes2;
 
     signer_class = (*env)->GetObjectClass(env, jsigner);
 
@@ -184,15 +195,15 @@ int signer_java_to_c(JNIEnv *env, jobject jsigner, struct signer *signer) {
 
     fid = (*env)->GetFieldID(env, signer_class, "pubcoeff", "[[B");
     pubcoeff = (*env)->GetObjectField(env, jsigner, fid);
-    jbyteArray* bytes2;
+
     for (i = 0; i < THRESHOLD; i++) {
         bytes2 = (jbyteArray * ) (*env)->GetObjectArrayElement(env, pubcoeff, i);
-        b = (jbyte * )(*env)->GetByteArrayElements(env, bytes2, NULL);
+        b = (jbyte * )(*env)->GetByteArrayElements(env, (jbyteArray) bytes2, NULL);
         signer->pubcoeff[i] = *(secp256k1_pubkey *) malloc(sizeof(secp256k1_pubkey));
         for (j = 0; j < 64; j++) {
             signer->pubcoeff[i].data[j] = b[j];
         }
-        (*env)->ReleaseByteArrayElements(env, bytes2, b, 0);
+        (*env)->ReleaseByteArrayElements(env, (jbyteArray) bytes2, b, 0);
     }
     return 0;
 }
@@ -200,50 +211,41 @@ int signer_java_to_c(JNIEnv *env, jobject jsigner, struct signer *signer) {
 
 int signer_c_to_java(JNIEnv *env, jobject jsigner, struct signer *signer) {
     jfieldID fid;
-    jbyteArray bytes;
-    jbyte *b;
-    jobjectArray pubcoeff;
     jclass signer_class;
     int i;
-    int j;
+    jbyteArray jBuff;
+    jobjectArray in;
+    jclass myClassArray;
 
     signer_class = (*env)->GetObjectClass(env, jsigner);
-
     fid = (*env)->GetFieldID(env, signer_class, "pubkey", "[B");
-    jbyteArray jBuff = (*env)->NewByteArray(env, 64);
-    (*env)->SetByteArrayRegion(env, jBuff, 0, 64, signer->pubkey.data);
+    jBuff = (*env)->NewByteArray(env, 64);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 64, (const signed char *) signer->pubkey.data);
     (*env)->SetObjectField(env, jsigner, fid, jBuff);
-//    (*env)->ReleaseByteArrayElements(env, jBuff, &signer.pubkey.data, 0);
-
 
     fid = (*env)->GetFieldID(env, signer_class, "pubnonce", "[B");
     jBuff = (*env)->NewByteArray(env, 132);
-    (*env)->SetByteArrayRegion(env, jBuff, 0, 132, signer->pubnonce.data);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 132, (const signed char *) signer->pubnonce.data);
     (*env)->SetObjectField(env, jsigner, fid, jBuff);
-//    (*env)->ReleaseByteArrayElements(env, jBuff, &signer.pubnonce.data, 0);
-
 
     fid = (*env)->GetFieldID(env, signer_class, "partial_sig", "[B");
     jBuff = (*env)->NewByteArray(env, 36);
-    (*env)->SetByteArrayRegion(env, jBuff, 0, 36, signer->partial_sig.data);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 36, (const signed char *) signer->partial_sig.data);
     (*env)->SetObjectField(env, jsigner, fid, jBuff);
-//    (*env)->ReleaseByteArrayElements(env, jBuff, &signer.partial_sig.data, 0);
 
     fid = (*env)->GetFieldID(env, signer_class, "vss_hash", "[B");
     jBuff = (*env)->NewByteArray(env, 32);
-    (*env)->SetByteArrayRegion(env, jBuff, 0, 32, signer->vss_hash);
+    (*env)->SetByteArrayRegion(env, jBuff, 0, 32, (const signed char *) signer->vss_hash);
     (*env)->SetObjectField(env, jsigner, fid, jBuff);
-//    (*env)->ReleaseByteArrayElements(env, jBuff, &signer.vss_hash, 0);
 
     fid = (*env)->GetFieldID(env, signer_class, "pubcoeff", "[[B");
-    jclass myClassArray = (*env)->FindClass(env, "[B");
+    myClassArray = (*env)->FindClass(env, "[B");
 
-    jobjectArray in = (*env)->NewObjectArray(env,THRESHOLD,myClassArray,NULL);
+    in = (*env)->NewObjectArray(env,THRESHOLD,myClassArray,NULL);
     for(i = 0; i < THRESHOLD; i++) {
         jBuff = (*env)->NewByteArray(env, 64);
-        (*env)->SetByteArrayRegion(env, jBuff, 0, 64, signer->pubcoeff[i].data);
+        (*env)->SetByteArrayRegion(env, jBuff, 0, 64, (const signed char *) signer->pubcoeff[i].data);
         (*env)->SetObjectArrayElement(env, in, i, jBuff);
-//        (*env)->ReleaseByteArrayElements(env, jBuff, &signer.pubcoeff[i].data, 0);
     }
     (*env)->SetObjectField(env, jsigner, fid, in);
 

@@ -12,16 +12,13 @@
 #include <stdio.h>
 #include "jni_struct_convertor.c"
 
-#define N_SIGNERS 5
-#define THRESHOLD 3
-#define RANDOM "/dev/urandom" //"/Users/Ioana/my_random.txt"
-
+#define RANDOM "/dev/urandom"
 
 /* Create shares and coefficient commitments */
 int send_shares(const secp256k1_context* ctx,
-                secp256k1_frost_share shares[N_SIGNERS],
-                const secp256k1_xonly_pubkey *pubkeys[N_SIGNERS],
-                struct signer_secrets *signer_secret, struct signer *signer) {
+                secp256k1_frost_share *shares,
+                const secp256k1_xonly_pubkey **pubkeys,
+                struct signer_secrets *signer_secret, struct signer *signer, int n_signers, int threshold) {
     /* The same for all signers */
     secp256k1_musig_keyagg_cache cache;
 
@@ -50,29 +47,29 @@ int send_shares(const secp256k1_context* ctx,
         return 0;
     }
 
-    if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, &cache, pubkeys, N_SIGNERS)) {
+    if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, &cache, pubkeys, n_signers)) {
         return 0;
     }
     /* Generate a polynomial share for each participant */
-    if (!secp256k1_frost_share_gen(ctx, signer->pubcoeff, shares, THRESHOLD, N_SIGNERS, &signer_secret->keypair, &cache)) {
+    if (!secp256k1_frost_share_gen(ctx, signer->pubcoeff, shares, threshold, n_signers, &signer_secret->keypair, &cache)) {
         return 0;
     }
     return 1;
 }
 
 int sign_vss_send(const secp256k1_context* ctx,
-                  const secp256k1_xonly_pubkey *pubkeys[N_SIGNERS],
-                  const secp256k1_musig_pubnonce *pubnonces[N_SIGNERS],
+                  const secp256k1_xonly_pubkey **pubkeys,
+                  const secp256k1_musig_pubnonce **pubnonces,
                   struct signer_secrets *signer_secret, struct signer *signer,
-                  secp256k1_musig_keyagg_cache *cache, secp256k1_musig_session *session) {
+                  secp256k1_musig_keyagg_cache *cache, secp256k1_musig_session *session, int n_signers) {
     secp256k1_musig_aggnonce agg_pubnonce;
 
     /* Create aggregate pubkey, aggregate nonce and initialize signer data */
-    if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, cache, pubkeys, N_SIGNERS)) {
+    if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, cache, pubkeys, n_signers)) {
         return 0;
     }
 
-    if (!secp256k1_musig_nonce_agg(ctx, &agg_pubnonce, pubnonces, N_SIGNERS)) {
+    if (!secp256k1_musig_nonce_agg(ctx, &agg_pubnonce, pubnonces, n_signers)) {
         return 0;
     }
 
@@ -96,10 +93,10 @@ int sign_vss_receive(const secp256k1_context* ctx, struct signer *signer, secp25
 }
 
 int partial_signs_aggregate(const secp256k1_context* ctx,
-                            const secp256k1_musig_partial_sig *partial_sigs[N_SIGNERS],
-                            unsigned char *sig64, secp256k1_musig_session *session) {
+                            const secp256k1_musig_partial_sig **partial_sigs,
+                            unsigned char *sig64, secp256k1_musig_session *session, int n_signers) {
 
-    return secp256k1_musig_partial_sig_agg(ctx, sig64, session, partial_sigs, N_SIGNERS);
+    return secp256k1_musig_partial_sig_agg(ctx, sig64, session, partial_sigs, n_signers);
 }
 
 /**
@@ -133,8 +130,7 @@ int create_key_pair_java(const secp256k1_context* ctx, secp256k1_xonly_pubkey* p
     return 1;
 }
 
-int sign_message_step0(const secp256k1_context* ctx, struct signer_secrets *signer_secret, struct signer *signer, const unsigned char* msg32, unsigned char *sig64) {
-    int i;
+int sign_message_step0(const secp256k1_context* ctx, struct signer_secrets *signer_secret, struct signer *signer, const unsigned char* msg32) {
     /* The same for all signers */
     FILE *frand;
     unsigned char seckey[32];
@@ -169,49 +165,32 @@ int sign_message_step0(const secp256k1_context* ctx, struct signer_secrets *sign
 
 int sign_message_step1(const secp256k1_context* ctx, struct signer_secrets *signer_secret,
                        struct signer *signer, const unsigned char* msg32,
-                       const secp256k1_xonly_pubkey *pubkeys[N_SIGNERS],
-                       const secp256k1_musig_pubnonce *pubnonces[N_SIGNERS],
-                       size_t participants[THRESHOLD], int i,
-                       secp256k1_musig_session *session, secp256k1_musig_keyagg_cache *cache) {
+                        secp256k1_xonly_pubkey **pubkeys,
+                        secp256k1_musig_pubnonce **pubnonces,
+                       size_t *participants, int i,
+                       secp256k1_musig_session *session, secp256k1_musig_keyagg_cache *cache, int n_signers, int threshold) {
     /* The same for all signers */
     secp256k1_musig_aggnonce agg_pubnonce;
 
-
     /* Create aggregate pubkey, aggregate nonce and initialize signer data */
-    if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, cache, pubkeys, N_SIGNERS)) {
+    if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, cache, (const secp256k1_xonly_pubkey *const *) pubkeys, n_signers)) {
         return 0;
     }
-    if (!secp256k1_musig_nonce_agg(ctx, &agg_pubnonce, pubnonces, THRESHOLD)) {
+    if (!secp256k1_musig_nonce_agg(ctx, &agg_pubnonce, (const secp256k1_musig_pubnonce *const *) pubnonces, threshold)) {
         return 0;
     }
     if (!secp256k1_musig_nonce_process(ctx, session, &agg_pubnonce, msg32, cache, NULL)) {
         return 0;
     }
-    printf("TESTING FRMWEORKS: \n");
-    printf("partial sig: before \n");
-    int ii, jj;
-    for (jj = 0; jj < THRESHOLD; jj++) {
-//        for (ii = 0; ii < 36; ii++) {
-        //            signer[i].vss_hash[ii] = 0;
-        printf("%d, ", participants[jj]);
-//        }
-//        printf("\n");
-    }
-    printf("\n");
     /* partial_sign will clear the secnonce by setting it to 0. That's because
      * you must _never_ reuse the secnonce (or use the same session_id to
      * create a secnonce). If you do, you effectively reuse the nonce and
      * leak the secret key. */
-    if (!secp256k1_frost_partial_sign(ctx, &signer->partial_sig, &signer_secret->secnonce, &signer_secret->agg_share, session, THRESHOLD, participants, i+1)) {
+    if (!secp256k1_frost_partial_sign(ctx, &signer->partial_sig, &signer_secret->secnonce, &signer_secret->agg_share, session, threshold, participants, i+1)) {
         return 0;
     }
     return 1;
 }
-
-//int sign_message_step2(const secp256k1_context* ctx, unsigned char *sig64,
-//                       secp256k1_musig_session session, const secp256k1_musig_partial_sig *partial_sigs[N_SIGNERS]) {
-//    return secp256k1_musig_partial_sig_agg(ctx, sig64, &session, partial_sigs, THRESHOLD);
-//}
 
 SECP256K1_API jlong JNICALL Java_bitcoin_NativeSecp256k1_secp256k1_1ctx_1clone
         (JNIEnv* env, jclass classObject, jlong ctx_l)
@@ -240,13 +219,13 @@ SECP256K1_API jint JNICALL Java_bitcoin_NativeSecp256k1_secp256k1_1context_1rand
 }
 
 SECP256K1_API void JNICALL Java_bitcoin_NativeSecp256k1_secp256k1_1destroy_1context
-(JNIEnv* env, jclass classObject, jlong ctx_l)
+    (JNIEnv* env, jclass classObject, jlong ctx_l)
 {
-secp256k1_context *ctx = (secp256k1_context*)(uintptr_t)ctx_l;
+    secp256k1_context *ctx = (secp256k1_context*)(uintptr_t)ctx_l;
 
-secp256k1_context_destroy(ctx);
+    secp256k1_context_destroy(ctx);
 
-(void)classObject;(void)env;
+    (void)classObject;(void)env;
 }
 
 SECP256K1_API jint JNICALL Java_bitcoin_NativeSecp256k1_secp256k1_1ecdsa_1verify
@@ -592,7 +571,6 @@ JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_generate_1key(JNIEnv * env, 
     struct signer signer;
     struct signer_secrets secret;
     secp256k1_context *ctx;
-    int i;
 
     ctx = (secp256k1_context*)(uintptr_t)ctx_l;
 
@@ -619,16 +597,22 @@ JNIEXPORT jobjectArray JNICALL Java_bitcoin_NativeSecp256k1_send_1shares(JNIEnv 
     jbyteArray outArray;
     jobjectArray retArray;
     jbyte *b;
-    int i;
+    int i, n_signers, threshold = 0;
     size_t j;
-    secp256k1_xonly_pubkey *pub_key_ptr[N_SIGNERS];
+    secp256k1_xonly_pubkey **pub_key_ptr;
+    secp256k1_context *ctx;
+    secp256k1_frost_share *shares;
 
-    secp256k1_context *ctx = (secp256k1_context *) (uintptr_t) ctx_l;
+    n_signers = get_n_signers(env, public_keys);
+    threshold = get_threshold(env, signerj);
+    pub_key_ptr = (secp256k1_xonly_pubkey **) malloc(n_signers * sizeof(secp256k1_xonly_pubkey *));
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    ctx = (secp256k1_context *) (uintptr_t) ctx_l;
+
+    for (i = 0; i < n_signers; i++) {
         pub_key_ptr[i] = (secp256k1_xonly_pubkey *) malloc(sizeof(secp256k1_xonly_pubkey));
         bytes = (jbyteArray * )(*env)->GetObjectArrayElement(env, public_keys, i);
-        b = (jbyte * )(*env)->GetByteArrayElements(env, bytes, NULL);
+        b = (jbyte * )(*env)->GetByteArrayElements(env, (jbyteArray) bytes, NULL);
         for (j = 0; j < 64; j++) {
             pub_key_ptr[i]->data[j] = (unsigned char) b[j];
         }
@@ -640,20 +624,20 @@ JNIEXPORT jobjectArray JNICALL Java_bitcoin_NativeSecp256k1_send_1shares(JNIEnv 
     secret_java_to_c(env, secretj, &secret);
     signer_java_to_c(env, signerj, &signer);
 
-    secp256k1_frost_share shares[N_SIGNERS];
+    shares = (secp256k1_frost_share *) malloc (n_signers * sizeof(secp256k1_frost_share));
 
-    if(!send_shares(ctx, shares, pub_key_ptr, &secret, &signer)) {
+    if(!send_shares(ctx, shares, (const secp256k1_xonly_pubkey **) pub_key_ptr, &secret, &signer, n_signers, threshold)) {
         printf("FAILURE\n"); /*TODO throw java exception*/
     }
 
     secret_c_to_java(env, secretj, &secret);
     signer_c_to_java(env, signerj, &signer);
 
-    retArray = (*env)->NewObjectArray(env, N_SIGNERS,
+    retArray = (*env)->NewObjectArray(env, n_signers,
                                       (*env)->FindClass(env, "[B"),
                                       (*env)->NewByteArray(env, 1));
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    for (i = 0; i < n_signers; i++) {
         outArray = (*env)->NewByteArray(env, 32);
         (*env)->SetByteArrayRegion(env, outArray, 0, 32, (jbyte*)shares[i].data);
         (*env)->SetObjectArrayElement(env, retArray, i, outArray);
@@ -670,50 +654,59 @@ JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_receive_1commitments
     jobject secretj, jobjectArray signerjs,
     jint index, jlong ctx_l) {
 
-    struct signer signers[N_SIGNERS];
+    struct signer *signers;
     struct signer_secrets secret;
     jbyte *b;
-    int i;
+    int i, n_signers, threshold = 0;
     size_t j;
     jbyteArray * bytes;
-    jobject bytes2;
-    jobject current_signer;
-    secp256k1_frost_share *shares_to_send[N_SIGNERS];
-    secp256k1_pubkey *pubcoeffs[N_SIGNERS];
+    jobject current_signer = NULL;
+    secp256k1_frost_share **shares_to_send;
+    secp256k1_pubkey **pubcoeffs;
     secp256k1_context *ctx = (secp256k1_context *) (uintptr_t) ctx_l;
+
+    n_signers = get_n_signers(env, signerjs);
+
+    signers = (struct signer *) malloc(n_signers * sizeof(struct signer));
+    shares_to_send = (secp256k1_frost_share **) malloc(n_signers * sizeof(secp256k1_frost_share *));
+    pubcoeffs = (secp256k1_pubkey **) malloc(n_signers * sizeof(secp256k1_pubkey *));
 
     secret = *(struct signer_secrets *) malloc(sizeof(struct signer_secrets));
     secret_java_to_c(env, secretj, &secret);
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    for (i = 0; i < n_signers; i++) {
         shares_to_send[i] = (secp256k1_frost_share *) malloc(sizeof(secp256k1_frost_share));
         bytes = (jbyteArray * )(*env)->GetObjectArrayElement(env, shares, i);
-        b = (jbyte * )(*env)->GetByteArrayElements(env, bytes, NULL);
+        b = (jbyte * )(*env)->GetByteArrayElements(env, (jbyteArray) bytes, NULL);
         for (j = 0; j < 32; j++) {
             shares_to_send[i]->data[j] = b[j];
         }
     }
-    for (i = 0; i < N_SIGNERS; i++) {
+    for (i = 0; i < n_signers; i++) {
         signers[i] = *(struct signer *) malloc(sizeof(struct signer));
         bytes = (jobject * )(*env)->GetObjectArrayElement(env, signerjs, i);
-        signer_java_to_c(env, bytes, &signers[i]);
+        if (i == 0) {
+            threshold = get_threshold(env, (jobject) bytes);
+        }
+        signer_java_to_c(env, (jobject) bytes, &signers[i]);
         if (i == index) {
-            current_signer = bytes;
+            current_signer = (jobject) bytes;
         }
     }
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    for (i = 0; i < n_signers; i++) {
         pubcoeffs[i] = signers[i].pubcoeff;
     }
 
     if(!secp256k1_frost_share_agg(ctx, &secret.agg_share, signers[index].vss_hash,
-    shares_to_send, pubcoeffs, N_SIGNERS, THRESHOLD, index+1)) {
-    printf("failed aggregating shares\n");
+        (const secp256k1_frost_share *const *) shares_to_send,
+        (const secp256k1_pubkey *const *) pubcoeffs, n_signers, threshold, index+1)) {
+        printf("failed aggregating shares\n");
     }
 
 
     secret_c_to_java(env, secretj, &secret);
-    signer_c_to_java(env, current_signer, &signers[index]);
+    signer_c_to_java(env, (jobject) current_signer, &signers[index]);
 
 
     (void)classObject;
@@ -729,23 +722,23 @@ JNIEXPORT jobjectArray JNICALL Java_bitcoin_NativeSecp256k1_get_1combined_1publi
     const size_t pubKeyLen = 64;
     int i;
     size_t j;
-    secp256k1_xonly_pubkey *pub_key_ptr[5];
+    secp256k1_xonly_pubkey **pub_key_ptr;
     secp256k1_xonly_pubkey agg_pk;
 
     secp256k1_context *ctx = (secp256k1_context*)(uintptr_t)ctx_l;
-
+    pub_key_ptr = (secp256k1_xonly_pubkey **) malloc(totalNumberOfKeys * sizeof(secp256k1_xonly_pubkey *));
     for(i = 0; i < totalNumberOfKeys; i++)
     {
         pub_key_ptr[i] = (secp256k1_xonly_pubkey *) malloc(sizeof(secp256k1_xonly_pubkey));
         bytes = (jbyteArray *) (*env)->GetObjectArrayElement(env,publicKeys,i);
-        b = (jbyte*) (*env)->GetByteArrayElements(env, bytes, NULL);
+        b = (jbyte*) (*env)->GetByteArrayElements(env, (jbyteArray) bytes, NULL);
         for(j = 0; j < pubKeyLen; j++) {
             pub_key_ptr[i]->data[j] = (unsigned char) b[j];
         }
     }
 
 
-    if(!secp256k1_musig_pubkey_agg(ctx, NULL, &agg_pk, NULL, pub_key_ptr, totalNumberOfKeys)) {
+    if(!secp256k1_musig_pubkey_agg(ctx, NULL, &agg_pk, NULL, (const secp256k1_xonly_pubkey *const *) pub_key_ptr, totalNumberOfKeys)) {
         printf("FAILURE\n"); /*TODO throw java exception*/
     }
 
@@ -759,22 +752,29 @@ JNIEXPORT jobjectArray JNICALL Java_bitcoin_NativeSecp256k1_get_1combined_1publi
 }
 
 JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_send_1vss_1sign(JNIEnv *env, jclass classObject, jobject secretj, jobjectArray signersj, jobject sessionj, jobject cachej, jint index, jlong ctx_l) {
-    struct signer signers[N_SIGNERS];
+    struct signer *signers;
     struct signer_secrets secret;
     secp256k1_musig_session session;
     secp256k1_musig_keyagg_cache cache;
 
-    jbyte *b;
-    int i;
+    int i, n_signers;
     jbyteArray * bytes;
-    jobject current_signer;
-    secp256k1_xonly_pubkey *pubkeys[N_SIGNERS];
-    secp256k1_musig_pubnonce *pubnonces[N_SIGNERS];
+    jobject current_signer = NULL;
+    const secp256k1_xonly_pubkey **pubkeys;
+    const secp256k1_musig_pubnonce **pubnonces;
+    secp256k1_context *ctx;
 
-    secp256k1_context *ctx = (secp256k1_context *) (uintptr_t) ctx_l;
+    n_signers = get_n_signers(env, signersj);
+
+    signers = (struct signer *) malloc(n_signers * sizeof(struct signer));
+    pubkeys = (const secp256k1_xonly_pubkey **) malloc(n_signers * sizeof(secp256k1_xonly_pubkey *));
+    pubnonces = (const secp256k1_musig_pubnonce **) malloc(n_signers * sizeof(secp256k1_musig_pubnonce *));
+
+    ctx = (secp256k1_context *) (uintptr_t) ctx_l;
 
     secret = *(struct signer_secrets *) malloc(sizeof(struct signer_secrets));
     secret_java_to_c(env, secretj, &secret);
+
 
     session = *(secp256k1_musig_session *) malloc(sizeof(secp256k1_musig_session));
     session_java_to_c(env, sessionj, &session);
@@ -782,22 +782,22 @@ JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_send_1vss_1sign(JNIEnv *env,
     cache = *(secp256k1_musig_keyagg_cache *) malloc(sizeof(secp256k1_musig_keyagg_cache));
     cache_java_to_c(env, cachej, &cache);
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    for (i = 0; i < n_signers; i++) {
         signers[i] = *(struct signer *) malloc(sizeof(struct signer));
         bytes = (jobject * )(*env)->GetObjectArrayElement(env, signersj, i);
-        signer_java_to_c(env, bytes, &signers[i]);
+        signer_java_to_c(env, (jobject) bytes, &signers[i]);
         if (i == index) {
-        current_signer = bytes;
+        current_signer = (jobject) bytes;
         }
     }
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    for (i = 0; i < n_signers; i++) {
         pubkeys[i] = &signers[i].pubkey;
         pubnonces[i] = &signers[i].pubnonce;
     }
 
 
-    if(!sign_vss_send(ctx, pubkeys, pubnonces, &secret, &signers[index], &cache,  &session)) {
+    if(!sign_vss_send(ctx, pubkeys, pubnonces, &secret, &signers[index], &cache,  &session, n_signers)) {
         printf("failed vss sign send\n");
     }
 
@@ -806,75 +806,73 @@ JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_send_1vss_1sign(JNIEnv *env,
     session_c_to_java(env, sessionj, &session);
     cache_c_to_java(env, cachej, &cache);
 
-
     (void)classObject;
-
-
 }
 
 JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_receive_1vss_1sign(JNIEnv *env, jclass classObject, jobject signerj, jobject sessionj, jobject cachej, jlong ctx_l) {
-struct signer signer;
-secp256k1_context *ctx;
-int i;
+    struct signer signer;
+    secp256k1_context *ctx;
 
-secp256k1_musig_session session;
-secp256k1_musig_keyagg_cache cache;
-
-ctx = (secp256k1_context*)(uintptr_t)ctx_l;
-
-signer = *(struct signer *) malloc(sizeof(struct signer));
-signer_java_to_c(env, signerj, &signer);
-
-session = *(secp256k1_musig_session *) malloc(sizeof(secp256k1_musig_session));
-session_java_to_c(env, sessionj, &session);
-
-cache = *(secp256k1_musig_keyagg_cache *) malloc(sizeof(secp256k1_musig_keyagg_cache));
-cache_java_to_c(env, cachej, &cache);
-
-if(!sign_vss_receive(ctx, &signer, &session, &cache)) {
-printf("failed receiving vss sign\n");/*TODO throw java exception*/
-}
-
-signer_c_to_java(env, signerj, &signer);
-session_c_to_java(env, sessionj, &session);
-cache_c_to_java(env, cachej, &cache);
-
-(void)classObject;
-}
-
-JNIEXPORT jobjectArray JNICALL Java_bitcoin_NativeSecp256k1_aggregate_1vss_1sign(JNIEnv *env, jclass classObject, jobjectArray signersj, jobject sessionj, jlong ctx_l) {
-    struct signer signers[N_SIGNERS];
-    jbyteArray outArray;
-    jbyte *b;
-    int i;
-    jbyteArray * bytes;
-    secp256k1_musig_partial_sig *partial_signs[N_SIGNERS];
-    unsigned char sig[64];
     secp256k1_musig_session session;
+    secp256k1_musig_keyagg_cache cache;
 
-    secp256k1_context *ctx = (secp256k1_context *) (uintptr_t) ctx_l;
+    ctx = (secp256k1_context*)(uintptr_t)ctx_l;
+
+    signer = *(struct signer *) malloc(sizeof(struct signer));
+    signer_java_to_c(env, signerj, &signer);
 
     session = *(secp256k1_musig_session *) malloc(sizeof(secp256k1_musig_session));
     session_java_to_c(env, sessionj, &session);
 
+    cache = *(secp256k1_musig_keyagg_cache *) malloc(sizeof(secp256k1_musig_keyagg_cache));
+    cache_java_to_c(env, cachej, &cache);
 
-    for (i = 0; i < N_SIGNERS; i++) {
-        signers[i] = *(struct signer *) malloc(sizeof(struct signer));
-        bytes = (jobject * )(*env)->GetObjectArrayElement(env, signersj, i);
-        signer_java_to_c(env, bytes, &signers[i]);
+    if(!sign_vss_receive(ctx, &signer, &session, &cache)) {
+    printf("failed receiving vss sign\n");/*TODO throw java exception*/
     }
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    signer_c_to_java(env, signerj, &signer);
+    session_c_to_java(env, sessionj, &session);
+    cache_c_to_java(env, cachej, &cache);
+
+    (void)classObject;
+}
+
+JNIEXPORT jobjectArray JNICALL Java_bitcoin_NativeSecp256k1_aggregate_1vss_1sign(JNIEnv *env, jclass classObject, jobjectArray signersj, jobject sessionj, jlong ctx_l) {
+    struct signer *signers;
+    jbyteArray outArray;
+    int i, n_signers;
+    jbyteArray * bytes;
+    const secp256k1_musig_partial_sig **partial_signs;
+    unsigned char sig[64];
+    secp256k1_musig_session session;
+
+    secp256k1_context *ctx = (secp256k1_context *) (uintptr_t) ctx_l;
+    session = *(secp256k1_musig_session *) malloc(sizeof(secp256k1_musig_session));
+    session_java_to_c(env, sessionj, &session);
+
+    n_signers = get_n_signers(env, signersj);
+
+    partial_signs = (const secp256k1_musig_partial_sig **) malloc(n_signers * sizeof(secp256k1_musig_partial_sig *));
+    signers = (struct signer *) malloc(n_signers * sizeof(struct signer));
+
+    for (i = 0; i < n_signers; i++) {
+        signers[i] = *(struct signer *) malloc(sizeof(struct signer));
+        bytes = (jobject * )(*env)->GetObjectArrayElement(env, signersj, i);
+        signer_java_to_c(env, (jobject) bytes, &signers[i]);
+    }
+
+    for (i = 0; i < n_signers; i++) {
         partial_signs[i] = &signers[i].partial_sig;
     }
 
-    if(!partial_signs_aggregate(ctx, partial_signs, sig, &session)) {
+    if(!partial_signs_aggregate(ctx, partial_signs, sig, &session, n_signers)) {
         printf("failed vss sign send\n");
     }
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    for (i = 0; i < n_signers; i++) {
         bytes = (jobject * )(*env)->GetObjectArrayElement(env, signersj, i);
-        signer_c_to_java(env, bytes, &signers[i]);
+        signer_c_to_java(env, (jobject) bytes, &signers[i]);
     }
 
 
@@ -915,6 +913,7 @@ JNIEXPORT jboolean JNICALL Java_bitcoin_NativeSecp256k1_verify_1vss_1sign(JNIEnv
         printf("FAILED vss verify\n");
         return 0;
     }
+    (void)classObject;
     return 1;
 }
 
@@ -927,12 +926,9 @@ JNIEXPORT jobjectArray JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1first
     secp256k1_musig_keyagg_cache cache;
 
     jbyte *b;
-    int i;
     int j;
-    jbyteArray *bytes;
     unsigned char msg32[32];
     unsigned char sig64[64];
-    secp256k1_musig_pubnonce *pubnonces[N_SIGNERS];
 
     secp256k1_context *ctx = (secp256k1_context *) (uintptr_t) ctx_l;
 
@@ -958,7 +954,7 @@ JNIEXPORT jobjectArray JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1first
         msg32[j] = b[j];
     }
 
-    if (!sign_message_step0(ctx, &secret, &signer, msg32, sig64)) {
+    if (!sign_message_step0(ctx, &secret, &signer, msg32)) {
         printf("failed signing message - step 0");
     }
     signer_c_to_java(env, signerj, &signer);
@@ -976,9 +972,7 @@ JNIEXPORT jobjectArray JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1first
 JNIEXPORT jboolean JNICALL Java_bitcoin_NativeSecp256k1_verify_1frost(JNIEnv * env, jclass classObject, jbyteArray sigj, jbyteArray msgj, jbyteArray keyj, jlong ctx_l) {
 
     jbyte *b;
-    int i;
     int j;
-    jbyteArray *bytes;
     unsigned char msg32[32];
     unsigned char sig64[64];
     secp256k1_xonly_pubkey agg_pk;
@@ -998,31 +992,29 @@ JNIEXPORT jboolean JNICALL Java_bitcoin_NativeSecp256k1_verify_1frost(JNIEnv * e
         agg_pk.data[j] = b[j];
     }
 
-
     if (!secp256k1_schnorrsig_verify(ctx, sig64, msg32, 32, &agg_pk)) {
         printf("FAILED verify\n");
         return 0;
     }
+    (void)classObject;
     return 1;
 }
 
 JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1second(JNIEnv * env, jclass classObject, jintArray jparticipants, jobject secretj, jobjectArray signersj, jbyteArray msgj, jobject sessionj, jobject cachej,jint index, jlong ctx_l) {
-    jbyteArray outArray;
-    struct signer signers[N_SIGNERS];
+    struct signer *signers;
     struct signer_secrets secret;
     secp256k1_musig_session session;
     secp256k1_musig_keyagg_cache cache;
-    size_t participants[THRESHOLD];
-
-    jobject current_signer;
-
+    size_t *participants;
+    jobject current_signer = NULL;
     jbyte *b;
-    int i;
-    int j;
+
+    int i, j, n_signers, threshold = 0;
     jbyteArray *bytes;
     unsigned char msg32[32];
-    secp256k1_musig_pubnonce *pubnonces[N_SIGNERS];
-    secp256k1_xonly_pubkey *pubkeys[N_SIGNERS];
+    secp256k1_musig_pubnonce **pubnonces;
+    secp256k1_xonly_pubkey **pubkeys;
+    jint* myint;
 
     secp256k1_context *ctx = (secp256k1_context *) (uintptr_t) ctx_l;
 
@@ -1035,17 +1027,25 @@ JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1second(JNIEnv
     cache = *(secp256k1_musig_keyagg_cache *) malloc(sizeof(secp256k1_musig_keyagg_cache));
     cache_java_to_c(env, cachej, &cache);
 
+    n_signers = get_n_signers(env, signersj);
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    signers = (struct signer *) malloc(n_signers * sizeof(struct signer));
+    pubnonces = (secp256k1_musig_pubnonce **) malloc(n_signers * sizeof(secp256k1_musig_pubnonce *));
+    pubkeys = (secp256k1_xonly_pubkey **) malloc(n_signers * sizeof(secp256k1_xonly_pubkey *));
+
+    for (i = 0; i < n_signers; i++) {
         signers[i] = *(struct signer *) malloc(sizeof(struct signer));
         bytes = (jobject * )(*env)->GetObjectArrayElement(env, signersj, i);
-        signer_java_to_c(env, bytes, &signers[i]);
+        signer_java_to_c(env, (jobject) bytes, &signers[i]);
         if (i == index) {
-            current_signer = bytes;
+            current_signer = (jobject) bytes;
+            threshold = get_threshold(env, (jobject) bytes);
         }
     }
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    participants = (size_t *) malloc(threshold * sizeof(size_t));
+
+    for (i = 0; i < n_signers; i++) {
         pubkeys[i] = &signers[i].pubkey;
         pubnonces[i] = &signers[i].pubnonce;
     }
@@ -1055,12 +1055,12 @@ JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1second(JNIEnv
         msg32[j] = b[j];
     }
 
-    jint* myint = (jint * )(*env)->GetIntArrayElements(env, jparticipants, NULL);
-    for (j = 0; j < THRESHOLD; j++) {
+    myint = (jint * )(*env)->GetIntArrayElements(env, jparticipants, NULL);
+    for (j = 0; j < threshold; j++) {
         participants[j] = myint[j];
     }
 
-    if (!sign_message_step1(ctx, &secret, &signers[index], msg32, pubkeys, pubnonces, participants, index, &session, &cache)) {
+    if (!sign_message_step1(ctx, &secret, &signers[index], msg32, pubkeys, pubnonces, participants, index, &session, &cache, n_signers, threshold)) {
         printf("failed signing message - step 1");
     }
 
@@ -1068,21 +1068,19 @@ JNIEXPORT void JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1second(JNIEnv
     session_c_to_java(env, sessionj, &session);
     cache_c_to_java(env, cachej, &cache);
     secret_c_to_java(env, secretj, &secret);
-
+    (void)classObject;
 }
 
 
 JNIEXPORT jbyteArray JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1third(JNIEnv * env, jclass classObject, jbyteArray sigj, jobjectArray signersj, jobject sessionj, jlong ctx_l) {
     jbyteArray outArray;
-    struct signer signers[N_SIGNERS];
+    struct signer *signers;
     secp256k1_musig_session session;
     unsigned char sig64[64];
 
-    const secp256k1_musig_partial_sig *partial_sigs[N_SIGNERS];
-
+    const secp256k1_musig_partial_sig **partial_sigs;
     jbyte *b;
-    int i;
-    int j;
+    int i, j, n_signers, threshold = 0;
     jbyteArray *bytes;
 
     secp256k1_context *ctx = (secp256k1_context *)(uintptr_t) ctx_l;
@@ -1090,13 +1088,21 @@ JNIEXPORT jbyteArray JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1third(J
     session = *(secp256k1_musig_session *) malloc(sizeof(secp256k1_musig_session));
     session_java_to_c(env, sessionj, &session);
 
-    for (i = 0; i < N_SIGNERS; i++) {
+    n_signers = get_n_signers(env, signersj);
+
+    signers = (struct signer *) malloc(n_signers * sizeof(struct signer));
+    partial_sigs = (const secp256k1_musig_partial_sig **) malloc(n_signers * sizeof(secp256k1_musig_partial_sig *));
+
+    for (i = 0; i < n_signers; i++) {
         signers[i] = *(struct signer *) malloc(sizeof(struct signer));
         bytes = (jobject * )(*env)->GetObjectArrayElement(env, signersj, i);
-        signer_java_to_c(env, bytes, &signers[i]);
+        signer_java_to_c(env, (jobject) bytes, &signers[i]);
+        if (i == 0) {
+            threshold = get_threshold(env, (jobject) bytes);
+        }
     }
 
-    for (i = 0; i < THRESHOLD; i++) {
+    for (i = 0; i < threshold; i++) {
         partial_sigs[i] = &signers[i].partial_sig;
     }
 
@@ -1105,10 +1111,9 @@ JNIEXPORT jbyteArray JNICALL Java_bitcoin_NativeSecp256k1_sign_1message_1third(J
         sig64[j] = b[j];
     }
 
-    if (!secp256k1_musig_partial_sig_agg(ctx, sig64, &session, partial_sigs, THRESHOLD)) {
+    if (!secp256k1_musig_partial_sig_agg(ctx, sig64, &session, partial_sigs, threshold)) {
         printf("failed signing message - step 3");
     }
-
     outArray = (*env)->NewByteArray(env, 64);
     (*env)->SetByteArrayRegion(env, outArray, 0, 64, (jbyte*)sig64);
     (void)classObject;

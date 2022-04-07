@@ -26,13 +26,13 @@
 #define THRESHOLD 3
 
 struct signer_secrets {
-    secp256k1_keypair keypair;  // todo ai0
+    secp256k1_keypair keypair;
     secp256k1_frost_share agg_share;
     secp256k1_musig_secnonce secnonce;
 };
 
 struct signer {
-    secp256k1_xonly_pubkey pubkey;  // todo miu_i
+    secp256k1_xonly_pubkey pubkey;
     secp256k1_musig_pubnonce pubnonce;
     secp256k1_musig_partial_sig partial_sig;
     secp256k1_pubkey pubcoeff[THRESHOLD];
@@ -54,11 +54,11 @@ int create_keypair(const secp256k1_context* ctx, struct signer_secrets *signer_s
     /* The probability that this not a valid secret key is approximately 2^-128 */
     } while (!secp256k1_ec_seckey_verify(ctx, seckey));
     fclose(frand);
-     // todo set ai0 as keypair, round 1.1 (without ai1...ait sample)
+     /* todo set ai0 as keypair, round 1.1 (without ai1...ait sample) */
     if (!secp256k1_keypair_create(ctx, &signer_secrets->keypair, seckey)) {
         return 0;
     }
-     // todo set miu_i as pubkey, round 1.2
+     /* todo set miu_i as pubkey, round 1.2 */
     if (!secp256k1_keypair_xonly_pub(ctx, &signer->pubkey, NULL, &signer_secrets->keypair)) {
         return 0;
     }
@@ -106,7 +106,7 @@ int create_shares(const secp256k1_context* ctx, struct signer_secrets *signer_se
         if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, &cache, pubkeys, N_SIGNERS)) {
             return 0;
         }
-        /* Generate a polynomial share for each participant */ // todo sample ai1..ait, round 1.1
+        /* Generate a polynomial share for each participant  todo sample ai1..ait, round 1.1 */
         if (!secp256k1_frost_share_gen(ctx, signer[i].pubcoeff, shares[i], THRESHOLD, N_SIGNERS, &signer_secrets[i].keypair, &cache)) {
             return 0;
         }
