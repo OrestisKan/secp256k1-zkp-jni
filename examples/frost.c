@@ -11,10 +11,10 @@
 
 #include <stdio.h>
 #include <assert.h>
-#include <secp256k1.h>
-#include <secp256k1_schnorrsig.h>
-#include <secp256k1_musig.h>
-#include <secp256k1_frost.h>
+#include "include/secp256k1.h"
+#include "include/secp256k1_schnorrsig.h"
+#include "include/secp256k1_musig.h"
+#include "include/secp256k1_frost.h"
 #include <time.h>
 #include <stdio.h>
  /* Number of public keys involved in creating the aggregate signature */
