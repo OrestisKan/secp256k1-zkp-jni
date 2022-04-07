@@ -5,10 +5,9 @@
 #include "include/secp256k1.h"
 #include "include/secp256k1_ecdh.h"
 #include "include/secp256k1_recovery.h"
-#include <secp256k1.h>
-#include <secp256k1_schnorrsig.h>
-#include <secp256k1_musig.h>
-#include <secp256k1_frost.h>
+#include "include/secp256k1_schnorrsig.h"
+#include "include/secp256k1_musig.h"
+#include "include/secp256k1_frost.h"
 #include <stdio.h>
 #include "jni_struct_convertor.c"
 
