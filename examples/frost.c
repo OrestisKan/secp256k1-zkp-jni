@@ -17,13 +17,15 @@
 #include "include/secp256k1_frost.h"
 #include <time.h>
 #include <stdio.h>
+
+
  /* Number of public keys involved in creating the aggregate signature */
-#define N_SIGNERS 5
+#define N_SIGNERS 2
 
 #define RANDOM "/dev/urandom"
 
  /* Threshold required in creating the aggregate signature */
-#define THRESHOLD 3
+#define THRESHOLD 2
 
 struct signer_secrets {
     secp256k1_keypair keypair;

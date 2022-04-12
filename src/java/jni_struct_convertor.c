@@ -196,7 +196,9 @@ int signer_java_to_c(JNIEnv *env, jobject jsigner, struct signer *signer) {
     fid = (*env)->GetFieldID(env, signer_class, "pubcoeff", "[[B");
     pubcoeff = (*env)->GetObjectField(env, jsigner, fid);
 
-    for (i = 0; i < THRESHOLD; i++) {
+    int threshold = get_threshold(env, jsigner);
+
+    for (i = 0; i < threshold; i++) {
         bytes2 = (jbyteArray * ) (*env)->GetObjectArrayElement(env, pubcoeff, i);
         b = (jbyte * )(*env)->GetByteArrayElements(env, (jbyteArray) bytes2, NULL);
         signer->pubcoeff[i] = *(secp256k1_pubkey *) malloc(sizeof(secp256k1_pubkey));
@@ -241,8 +243,9 @@ int signer_c_to_java(JNIEnv *env, jobject jsigner, struct signer *signer) {
     fid = (*env)->GetFieldID(env, signer_class, "pubcoeff", "[[B");
     myClassArray = (*env)->FindClass(env, "[B");
 
-    in = (*env)->NewObjectArray(env,THRESHOLD,myClassArray,NULL);
-    for(i = 0; i < THRESHOLD; i++) {
+    int threshold = get_threshold(env, jsigner);
+    in = (*env)->NewObjectArray(env,threshold,myClassArray,NULL);
+    for(i = 0; i < threshold; i++) {
         jBuff = (*env)->NewByteArray(env, 64);
         (*env)->SetByteArrayRegion(env, jBuff, 0, 64, (const signed char *) signer->pubcoeff[i].data);
         (*env)->SetObjectArrayElement(env, in, i, jBuff);
