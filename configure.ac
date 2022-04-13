@@ -248,9 +248,11 @@ if test x"$use_jni" != x"no"; then
   AX_JNI_INCLUDE_DIR
   have_jni_dependencies=yes
   if test x"$enable_module_ecdh" = x"no"; then
+    AC_MSG_WARN([1])
     have_jni_dependencies=no
   fi
   if test "x$JNI_INCLUDE_DIRS" = "x"; then
+    AC_MSG_WARN([2])
     have_jni_dependencies=no
   fi
   if test "x$have_jni_dependencies" = "xno"; then

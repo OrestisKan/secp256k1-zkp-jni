@@ -48,8 +48,8 @@ noinst_HEADERS += src/field_5x52.h
 noinst_HEADERS += src/field_5x52_impl.h
 noinst_HEADERS += src/field_5x52_int128_impl.h
 noinst_HEADERS += src/field_5x52_asm_impl.h
-noinst_HEADERS += src/java/org_bitcoin_NativeSecp256k1.h
-noinst_HEADERS += src/java/org_bitcoin_Secp256k1Context.h
+noinst_HEADERS += src/java/bitcoin_NativeSecp256k1.h
+noinst_HEADERS += src/java/bitcoin_Secp256k1Context.h
 noinst_HEADERS += src/modinv32.h
 noinst_HEADERS += src/modinv32_impl.h
 noinst_HEADERS += src/modinv64.h
@@ -104,7 +104,7 @@ libsecp256k1_la_SOURCES = src/secp256k1.c
 libsecp256k1_la_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/src $(SECP_INCLUDES)
 libsecp256k1_la_LIBADD = $(JNI_LIB) $(SECP_LIBS) $(COMMON_LIB) $(PRECOMPUTED_LIB)
 
-libsecp256k1_jni_la_SOURCES  = src/java/org_bitcoin_NativeSecp256k1.c src/java/org_bitcoin_Secp256k1Context.c
+libsecp256k1_jni_la_SOURCES  = src/java/bitcoin_NativeSecp256k1.c src/java/bitcoin_Secp256k1Context.c
 libsecp256k1_jni_la_CPPFLAGS = -DSECP256K1_BUILD $(JNI_INCLUDES)
 
 libsecp256k1_la_LDFLAGS = -no-undefined -version-info $(LIB_VERSION_CURRENT):$(LIB_VERSION_REVISION):$(LIB_VERSION_AGE)
@@ -146,7 +146,7 @@ TESTS += tests
 endif
 
 JAVAROOT=src/java
-JAVAORG=org/bitcoin
+JAVAORG=bitcoin
 JAVA_GUAVA=$(srcdir)/$(JAVAROOT)/guava/guava-18.0.jar
 CLASSPATH_ENV=CLASSPATH=$(JAVA_GUAVA)
 JAVA_FILES= \

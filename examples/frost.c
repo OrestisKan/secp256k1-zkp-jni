@@ -11,16 +11,21 @@
 
 #include <stdio.h>
 #include <assert.h>
-#include <secp256k1.h>
-#include <secp256k1_schnorrsig.h>
-#include <secp256k1_musig.h>
-#include <secp256k1_frost.h>
+#include "include/secp256k1.h"
+#include "include/secp256k1_schnorrsig.h"
+#include "include/secp256k1_musig.h"
+#include "include/secp256k1_frost.h"
+#include <time.h>
+#include <stdio.h>
+
 
  /* Number of public keys involved in creating the aggregate signature */
-#define N_SIGNERS 5
+#define N_SIGNERS 2
+
+#define RANDOM "/dev/urandom"
 
  /* Threshold required in creating the aggregate signature */
-#define THRESHOLD 3
+#define THRESHOLD 2
 
 struct signer_secrets {
     secp256k1_keypair keypair;
@@ -39,7 +44,7 @@ struct signer {
  /* Create a key pair and store it in seckey and pubkey */
 int create_keypair(const secp256k1_context* ctx, struct signer_secrets *signer_secrets, struct signer *signer) {
     unsigned char seckey[32];
-    FILE *frand = fopen("/dev/urandom", "r");
+     FILE *frand = fopen(RANDOM, "r");
     if (frand == NULL) {
         return 0;
     }
@@ -51,9 +56,11 @@ int create_keypair(const secp256k1_context* ctx, struct signer_secrets *signer_s
     /* The probability that this not a valid secret key is approximately 2^-128 */
     } while (!secp256k1_ec_seckey_verify(ctx, seckey));
     fclose(frand);
+     /* todo set ai0 as keypair, round 1.1 (without ai1...ait sample) */
     if (!secp256k1_keypair_create(ctx, &signer_secrets->keypair, seckey)) {
         return 0;
     }
+     /* todo set miu_i as pubkey, round 1.2 */
     if (!secp256k1_keypair_xonly_pub(ctx, &signer->pubkey, NULL, &signer_secrets->keypair)) {
         return 0;
     }
@@ -68,7 +75,6 @@ int create_shares(const secp256k1_context* ctx, struct signer_secrets *signer_se
     const secp256k1_xonly_pubkey *pubkeys[N_SIGNERS];
     /* The same for all signers */
     secp256k1_musig_keyagg_cache cache;
-
     for (i = 0; i < N_SIGNERS; i++) {
         FILE *frand;
         unsigned char seckey[32];
@@ -76,7 +82,7 @@ int create_shares(const secp256k1_context* ctx, struct signer_secrets *signer_se
         /* Create random session ID. It is absolutely necessary that the session ID
          * is unique for every call of secp256k1_musig_nonce_gen. Otherwise
          * it's trivial for an attacker to extract the secret key! */
-        frand = fopen("/dev/urandom", "r");
+        frand = fopen(RANDOM, "r");
         if(frand == NULL) {
             return 0;
         }
@@ -95,13 +101,14 @@ int create_shares(const secp256k1_context* ctx, struct signer_secrets *signer_se
         }
         pubkeys[i] = &signer[i].pubkey;
         pubcoeffs[i] = signer[i].pubcoeff;
+
     }
 
     for (i = 0; i < N_SIGNERS; i++) {
         if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, &cache, pubkeys, N_SIGNERS)) {
             return 0;
         }
-        /* Generate a polynomial share for each participant */
+        /* Generate a polynomial share for each participant  todo sample ai1..ait, round 1.1 */
         if (!secp256k1_frost_share_gen(ctx, signer[i].pubcoeff, shares[i], THRESHOLD, N_SIGNERS, &signer_secrets[i].keypair, &cache)) {
             return 0;
         }
@@ -123,7 +130,6 @@ int create_shares(const secp256k1_context* ctx, struct signer_secrets *signer_se
             return 0;
         }
     }
-
     return 1;
 }
 
@@ -171,16 +177,16 @@ int sign_vss(const secp256k1_context* ctx, struct signer_secrets *signer_secrets
 
 /* Sign a message hash with the given threshold and aggregate shares and store
  * the result in sig */
-int sign(const secp256k1_context* ctx, struct signer_secrets *signer_secrets, struct signer *signer, const unsigned char* msg32, unsigned char *sig64) {
+int sign(const secp256k1_context* ctx, struct signer_secrets *signer_secrets, struct signer *signer, const unsigned char* msg32, unsigned char sig64[64]) {
     int i;
     const secp256k1_xonly_pubkey *pubkeys[N_SIGNERS];
     const secp256k1_musig_pubnonce *pubnonces[N_SIGNERS];
     const secp256k1_musig_partial_sig *partial_sigs[N_SIGNERS];
     /* The same for all signers */
+
     secp256k1_musig_keyagg_cache cache;
     secp256k1_musig_session session;
     size_t participants[THRESHOLD];
-
     for (i = 0; i < N_SIGNERS; i++) {
         FILE *frand;
         unsigned char seckey[32];
@@ -188,7 +194,7 @@ int sign(const secp256k1_context* ctx, struct signer_secrets *signer_secrets, st
         /* Create random session ID. It is absolutely necessary that the session ID
          * is unique for every call of secp256k1_musig_nonce_gen. Otherwise
          * it's trivial for an attacker to extract the secret key! */
-        frand = fopen("/dev/urandom", "r");
+        frand = fopen(RANDOM, "r");
         if(frand == NULL) {
             return 0;
         }
@@ -238,6 +244,7 @@ int sign(const secp256k1_context* ctx, struct signer_secrets *signer_secrets, st
         partial_sigs[i] = &signer[i].partial_sig;
     }
     /* Signing communication round 2: Exchange partial signatures */
+
     return secp256k1_musig_partial_sig_agg(ctx, sig64, &session, partial_sigs, THRESHOLD);
 }
 
@@ -264,11 +271,12 @@ int sign(const secp256k1_context* ctx, struct signer_secrets *signer_secrets, st
     printf("ok\n");
     printf("Combining public keys...");
     if (!secp256k1_musig_pubkey_agg(ctx, NULL, &agg_pk, NULL, pubkeys_ptr, N_SIGNERS)) {
-        printf("FAILED\n");
+        /*!secp256k1_musig_pubkey_agg(ctx, NULL, &agg_pk, NULL, pubkeys, total_number_of_public_keys)
+        */
         return 1;
     }
     printf("ok\n");
-    printf("Creating shares......");
+    printf("Creating shares......\n");
     if (!create_shares(ctx, signer_secrets, signers)) {
         printf("FAILED\n");
         return 1;
@@ -302,99 +310,3 @@ int sign(const secp256k1_context* ctx, struct signer_secrets *signer_secrets, st
     return 0;
 }
 
-/*/////////////////////////////////////////////////////////////////
-//                                                              //
-//                                                              //
-//                       METHODS FOR JAVA                       //
-//                                                              //
-//                                                              //
-/////////////////////////////////////////////////////////////////*/
-
-/**
- * Method to create a key pair for each participant
- * @param ctx
- * @param pubkey pointer to the publickey
- * @param keypair pointer to the keypair
- * @return success/failure
- */
-int create_key_pair_java(const secp256k1_context* ctx, secp256k1_xonly_pubkey pubkey, secp256k1_keypair keypair)
-{
-    unsigned char seckey[32];
-    FILE *frand = fopen("/dev/urandom", "r");
-    if (frand == NULL) {
-        return 0;
-    }
-    do {
-        if(!fread(seckey, sizeof(seckey), 1, frand)) {
-            fclose(frand);
-            return 0;
-        }
-        /* The probability that this not a valid secret key is approximately 2^-128 */
-    } while (!secp256k1_ec_seckey_verify(ctx, seckey));
-    fclose(frand);
-    if (!secp256k1_keypair_create(ctx, &keypair, seckey)) {
-        return 0;
-    }
-    if (!secp256k1_keypair_xonly_pub(ctx, &pubkey, NULL, &keypair)) {
-        return 0;
-    }
-    return 1;
-}
-
-/**
- * Combines all of the public keys to a single aggregated public key
- * @param ctx
- * @param agg_pk
- * @param pubkeys
- * @param total_number_of_public_keys
- * @return success/failure
- */
-int secp256k1_musig_pubkey_agg_java(const secp256k1_context* ctx, secp256k1_xonly_pubkey agg_pk, const secp256k1_xonly_pubkey * const* pubkeys, size_t total_number_of_public_keys)
-{
-    if (!secp256k1_musig_pubkey_agg(ctx, NULL, &agg_pk, NULL, pubkeys, total_number_of_public_keys)) {
-        return 0;
-    }
-    return 1;
-}
-
-/**
- * Method for each participant to sign
- * @param ctx
- * @param session
- * @param currentSigner
- * @param msg32
- * @param number_of_participants
- * @param current_index
- * @return
- */
-/*secp256k1_musig_partial_sig secp256k1_frost_partial_sign_java(secp256k1_context* ctx, secp256k1_musig_session session, struct signer currentSigner,const unsigned char* msg32, size_t number_of_participants, size_t current_index)
-//{
-//
-//    size_t participants[number_of_participants];
-//    / Set indexes of participants who will be signing /
-//    int i;
-//    for (i = 0; i < number_of_participants; i++) {
-//        participants[i] = i+1;
-//    }
-//
-//    secp256k1_musig_aggnonce agg_pubnonce;
-//
-//    / Create aggregate pubkey, aggregate nonce and initialize signer data /
-//    if (!secp256k1_musig_pubkey_agg(ctx, NULL, NULL, &cache, pubkeys, N_SIGNERS)) {
-//        return 0;
-//    }
-//    if (!secp256k1_musig_nonce_agg(ctx, &agg_pubnonce, pubnonces, THRESHOLD)) {
-//        return 0;
-//    }
-//    if (!secp256k1_musig_nonce_process(ctx, &session, &agg_pubnonce, msg32, &cache, NULL)) {
-//        return 0;
-//    }
-//    / partial_sign will clear the secnonce by setting it to 0. That's because
-//      you must _never_ reuse the secnonce (or use the same session_id to
-//      create a secnonce). If you do, you effectively reuse the nonce and
-//      leak the secret key. /
-//    if (!secp256k1_frost_partial_sign(ctx, &currentSigner.partial_sig, &currentSigner.secnonce, &currentSigner.agg_share, &session, number_of_participants, participants, current_index)) {
-//        return 0;
-//    }
-//    return signer.partial_sig;
-//}*/
