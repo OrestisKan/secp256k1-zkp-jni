@@ -151,12 +151,13 @@ int get_n_signers(JNIEnv *env, jobjectArray jarr) {
 }
 
 int signer_java_to_c(JNIEnv *env, jobject jsigner, struct signer *signer) {
+    int i, j;
+    int threshold;
     jfieldID fid;
     jbyteArray bytes;
     jbyte *b;
     jobjectArray pubcoeff;
     jclass signer_class;
-    int i, j;
     jbyteArray* bytes2;
 
     signer_class = (*env)->GetObjectClass(env, jsigner);
@@ -196,7 +197,7 @@ int signer_java_to_c(JNIEnv *env, jobject jsigner, struct signer *signer) {
     fid = (*env)->GetFieldID(env, signer_class, "pubcoeff", "[[B");
     pubcoeff = (*env)->GetObjectField(env, jsigner, fid);
 
-    int threshold = get_threshold(env, jsigner);
+    threshold = get_threshold(env, jsigner);
 
     for (i = 0; i < threshold; i++) {
         bytes2 = (jbyteArray * ) (*env)->GetObjectArrayElement(env, pubcoeff, i);
@@ -212,9 +213,10 @@ int signer_java_to_c(JNIEnv *env, jobject jsigner, struct signer *signer) {
 
 
 int signer_c_to_java(JNIEnv *env, jobject jsigner, struct signer *signer) {
+    int i;
+    int threshold;
     jfieldID fid;
     jclass signer_class;
-    int i;
     jbyteArray jBuff;
     jobjectArray in;
     jclass myClassArray;
@@ -243,7 +245,7 @@ int signer_c_to_java(JNIEnv *env, jobject jsigner, struct signer *signer) {
     fid = (*env)->GetFieldID(env, signer_class, "pubcoeff", "[[B");
     myClassArray = (*env)->FindClass(env, "[B");
 
-    int threshold = get_threshold(env, jsigner);
+    threshold = get_threshold(env, jsigner);
     in = (*env)->NewObjectArray(env,threshold,myClassArray,NULL);
     for(i = 0; i < threshold; i++) {
         jBuff = (*env)->NewByteArray(env, 64);
